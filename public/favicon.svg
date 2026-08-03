@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="18" fill="url(#bg)"/>
+  <!-- Subtle inner ring -->
+  <circle cx="32" cy="32" r="23" stroke="white" stroke-opacity="0.15" stroke-width="2"/>
+  <!-- Exchange Arrows Loop -->
+  <path d="M20 26C20 20.4772 24.4772 16 30 16H38M38 16L32 10M38 16L32 22" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 38C44 43.5228 39.5228 48 34 48H26M26 48L32 42M26 48L32 54" stroke="#67E8F9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Central Glowing Node -->
+  <circle cx="32" cy="32" r="4" fill="white"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E40AF"/>
+      <stop offset="0.5" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#0284C7"/>
+    </linearGradient>
+  </defs>
+</svg>

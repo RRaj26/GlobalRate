@@ -1,69 +1,90 @@
 @import "tailwindcss";
 
-/* Fintech SaaS Design Tokens */
+/* Senior Fintech SaaS Design Tokens & System */
 :root {
   --bg-color: #F8FAFC;
   --card-bg: #FFFFFF;
+  --surface-layered: #F1F5F9;
   --card-border: #E2E8F0;
+  --card-border-glow: rgba(59, 130, 246, 0.15);
   --text-primary: #0F172A;
   --text-secondary: #64748B;
-  --accent-color: #3B82F6;
-  --accent-hover: #2563EB;
-  --input-bg: #F1F5F9;
-  --panel-bg: #F8FAFC;
+  --text-muted: #94A3B8;
+  --accent-color: #2563EB;
+  --accent-hover: #1D4ED8;
+  --input-bg: #F8FAFC;
+  --panel-bg: #F1F5F9;
   --shimmer-start: #E2E8F0;
   --shimmer-end: #F1F5F9;
 }
 
 :root.dark {
-  --bg-color: #0F172A;
-  --card-bg: #1E293B;
-  --card-border: #334155;
+  --bg-color: #0B0F19;
+  --card-bg: #111827;
+  --surface-layered: #1E293B;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border-glow: rgba(59, 130, 246, 0.25);
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
+  --text-muted: #64748B;
   --accent-color: #3B82F6;
-  --accent-hover: #1D4ED8;
-  --input-bg: #0F172A;
-  --panel-bg: #1A2234;
-  --shimmer-start: #1E293B;
-  --shimmer-end: #334155;
+  --accent-hover: #2563EB;
+  --input-bg: #090D16;
+  --panel-bg: #151D2A;
+  --shimmer-start: #111827;
+  --shimmer-end: #1E293B;
 }
 
 body {
   background-color: var(--bg-color);
   color: var(--text-primary);
-  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1), color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
 }
 
-/* Custom Scrollbars */
+/* Tabular Mono font utility */
+.font-mono-numbers {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom Fine Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--card-border);
+  background: rgba(148, 163, 184, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.45);
 }
 
-/* Grid Overlay Background */
+/* Subtle Grid Overlay Background */
 .bg-grid {
   background-size: 32px 32px;
   background-image: 
-    linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
 }
 :root.dark .bg-grid {
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+}
+
+/* Hero Glow Elevation */
+.hero-glow {
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+:root.dark .hero-glow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(59, 130, 246, 0.2);
 }
 
 /* Animated Shimmer Skeleton style */

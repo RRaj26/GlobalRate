@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Globe, ArrowUpDown, Star, Trash2, 
-  Clock, TrendingUp, Sparkles, Coins, Info, CheckCircle2,
-  RefreshCw, Sun, Moon
-} from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import React, { useState, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
+import { ArrowUpDown, Coins, AlertTriangle, RefreshCw } from 'lucide-react'
 
-import { InputBox, ConverterSkeleton, RatesSkeleton, ChartSkeleton } from './Components'
+import { 
+  InputBox, Header, CurrencySummaryCard, RateTrendChart,
+  PopularRates, CalculationHistory, FavoriteCurrencies,
+  FinancialDisclaimer, ConverterSkeleton 
+} from './Components'
 
 // Official flag map for fiat currencies
 const flagMap = {
@@ -32,14 +31,7 @@ const flagMap = {
   xcd: '🇩🇲', xof: '🇨🇮', xpf: '🇵🇫', yer: '🇾🇪', zmw: '🇿🇲', zwl: '🇿🇼'
 }
 
-const getFlag = (code) => {
-  return flagMap[code.toLowerCase()] || '🏳️'
-}
-
-// Popular currencies displayed in the sidebar panel
-const popularCodes = ['usd', 'eur', 'gbp', 'jpy', 'aud', 'cad', 'aed']
-
-// Mapping of common currency symbols
+// Currency symbol mapper
 const getCurrencySymbol = (code) => {
   const symbols = {
     usd: '$', eur: '€', gbp: '£', jpy: '¥', inr: '₹', aud: 'A$', cad: 'C$', chf: 'CHF', cny: '¥', aed: 'د.إ'
@@ -47,7 +39,7 @@ const getCurrencySymbol = (code) => {
   return symbols[code.toLowerCase()] || `${code.toUpperCase()} `
 }
 
-// User-friendly rate formatter (limited strictly to 2 decimal places)
+// Rate formatter
 const formatExchangeRate = (rate, targetCurrency) => {
   if (!rate || isNaN(rate)) return '—'
   const symbol = getCurrencySymbol(targetCurrency)
@@ -55,43 +47,18 @@ const formatExchangeRate = (rate, targetCurrency) => {
   return `${symbol}${value}`
 }
 
-// Standard amount formatter (strictly 2 decimal places)
+// Standard amount formatter
 const formatAmount = (amt) => {
   if (amt === 0 || isNaN(amt)) return '0.00'
   return Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// Pseudo-random deterministic historical chart generator
-const generateChartData = (rate, days = 7) => {
-  if (!rate) return []
-  const data = []
-  const now = new Date()
-  let seed = rate * 1000
-  
-  const pseudoRandom = () => {
-    const x = Math.sin(seed++) * 10000
-    return x - Math.floor(x)
-  }
-
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(now.getDate() - i)
-    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    const changePercent = (pseudoRandom() - 0.5) * 3.5 // -1.75% to +1.75%
-    const value = Number((rate * (1 + changePercent / 100)).toFixed(2))
-    
-    data.push({
-      name: dateStr,
-      rate: value
-    })
-  }
-  return data
-}
-
 function App() {
   // Theme state with localStorage persistence
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'dark'
+    const saved = localStorage.getItem('theme')
+    if (saved === 'dark' || saved === 'light') return saved
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
   })
 
   // Last updated timestamp & refresh state
@@ -99,11 +66,12 @@ function App() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   })
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isApiError, setIsApiError] = useState(false)
 
   // Sync theme with HTML root class
   useEffect(() => {
-    if (theme === 'dark'
-    ) {
+    if (theme === 'dark') {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
@@ -125,7 +93,11 @@ function App() {
   // History state
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem('history')
-    return saved ? JSON.parse(saved) : []
+    return saved ? JSON.parse(saved) : [
+      { id: 1, from: 'USD', to: 'INR', fromAmount: 1000, toAmount: 95673.94, time: '02:09 PM' },
+      { id: 2, from: 'USD', to: 'INR', fromAmount: 500, toAmount: 47836.97, time: '01:45 PM' },
+      { id: 3, from: 'USD', to: 'INR', fromAmount: 200, toAmount: 19134.79, time: '12:32 PM' }
+    ]
   })
 
   // Favorites state
@@ -134,11 +106,8 @@ function App() {
     return saved ? JSON.parse(saved) : ['usd', 'eur', 'inr', 'gbp', 'jpy']
   })
 
-  // Chart state
-  const [chartDays, setChartDays] = useState(7)
-
-  // Separated loading states
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  // Chart time range state
+  const [chartDays, setChartDays] = useState(30)
 
   // Full currency names registry
   const [currencyNames, setCurrencyNames] = useState({})
@@ -146,7 +115,7 @@ function App() {
   // Currency Info state containing exchange rates
   const [currencyInfo, setCurrencyInfo] = useState({})
 
-  // Only display official fiat currencies in the options list (filters out non-fiat cryptos)
+  // Official fiat currency options list
   const options = Object.keys(currencyInfo).filter(code => flagMap[code.toLowerCase()] !== undefined)
 
   // Fetch full currency names dictionary once on mount
@@ -167,35 +136,47 @@ function App() {
     localStorage.setItem('history', JSON.stringify(history))
   }, [history])
 
-  // Fetch fresh exchange rates from the API
+  // Fetch fresh exchange rates from API
   const fetchRates = useCallback((baseCurrency) => {
-    return fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${baseCurrency}.json`)
-      .then(res => res.json())
+    setIsApiError(false)
+    // Add cache buster timestamp to prevent browser/CDN stale cache
+    return fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${baseCurrency}.json?_t=${Date.now()}`, { cache: 'no-cache' })
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP request failed")
+        return res.json()
+      })
       .then(data => {
         const rates = data[baseCurrency] || {}
+        if (Object.keys(rates).length === 0) throw new Error("Empty rates object")
         setCurrencyInfo(rates)
         setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
         return rates
       })
       .catch(err => {
         console.error("Error fetching rates:", err)
+        setIsApiError(true)
         return {}
       })
   }, [])
 
-  // Manual refresh handler
+  // Manual refresh handler - triggers skeleton loading state & refetches rates
   const handleManualRefresh = () => {
     setIsRefreshing(true)
+    setIsInitialLoading(true)
+    const startTime = Date.now()
     fetchRates(from)
-      .then(() => {
-        setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-      })
       .finally(() => {
-        setTimeout(() => setIsRefreshing(false), 500)
+        const elapsedTime = Date.now() - startTime
+        const minSpinDuration = 500
+        const remainingTime = Math.max(0, minSpinDuration - elapsedTime)
+        setTimeout(() => {
+          setIsRefreshing(false)
+          setIsInitialLoading(false)
+        }, remainingTime)
       })
   }
 
-  // Fetch rates whenever the base currency "from" changes
+  // Fetch rates whenever base currency "from" changes (Initial Load Driven)
   useEffect(() => {
     setIsInitialLoading(true)
     fetchRates(from)
@@ -204,7 +185,7 @@ function App() {
       })
   }, [from, fetchRates])
 
-  // Automatically refresh data in background every 60 seconds
+  // Auto refresh every 60 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchRates(from)
@@ -293,63 +274,115 @@ function App() {
     })
   }
 
-  const activeRate = currencyInfo[to] || 0
-  const chartData = generateChartData(activeRate, chartDays)
+  const activeRate = currencyInfo[to] || (to === 'inr' ? 83.72 : 1)
+
+  // Calculate summary rates relative to INR or USD
+  const inrRate = currencyInfo['inr'] || 83.72
+  const eurRate = currencyInfo['eur'] ? (inrRate / currencyInfo['eur']) : 97.21
+  const gbpRate = currencyInfo['gbp'] ? (inrRate / currencyInfo['gbp']) : 112.54
+  const jpyRate = currencyInfo['jpy'] ? (inrRate / currencyInfo['jpy']) : 0.56
 
   return (
-    <div className="w-full min-h-screen bg-[#F8FAFC] dark:bg-[#0B0F19] bg-grid text-[#0F172A] dark:text-[#F8FAFC] transition-colors duration-300 pb-16 antialiased selection:bg-blue-500 selection:text-white">
+    <div className="w-full min-h-screen bg-[#F5F7FA] dark:bg-[#0B0F19] text-[#111827] dark:text-[#F8FAFC] transition-colors duration-300 antialiased selection:bg-blue-500 selection:text-white">
       
-      {/* Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0B0F19]/80 backdrop-blur-md border-b border-[#E2E8F0] dark:border-[#334155]">
-        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-600 rounded-xl text-white shadow-md shadow-blue-500/20">
-              <Globe size={18} />
-            </div>
-            <div>
-              <h1 className="text-md font-bold tracking-tight text-slate-900 dark:text-white">
-                GlobalRate <span className="text-blue-500 font-extrabold text-[10px] tracking-widest uppercase ml-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">Pro</span>
-              </h1>
-              <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8] font-semibold hidden sm:block">
-                Real-time Currency Exchange Rate Tracker & Converter
-              </p>
-            </div>
-          </div>
+      {/* Centered Full-Width Workspace Container (max-w 1440px) */}
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        
+        {/* LEVEL 1: Top Navigation Header */}
+        <Header 
+          lastUpdated={lastUpdated}
+          isRefreshing={isRefreshing}
+          onRefresh={handleManualRefresh}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
 
-          {/* Live Sync Status Indicator */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Live Rates</span>
+        {/* API Error Notification Banner (if network fails on initial load) */}
+        {isApiError && (
+          <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-rose-700 dark:text-rose-300">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={20} className="shrink-0 text-rose-500" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider">Unable to sync live market rates</p>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">Please check your connection and retry exchange rate sync.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow-sm shrink-0"
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} />
+              <span>Retry Sync</span>
+            </button>
           </div>
-        </div>
-      </header>
+        )}
 
-      {/* Main Container Grid Layout (8px Spacing System) */}
-      <main className="max-w-[1280px] mx-auto px-4 sm:px-8 mt-8 sm:mt-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* LEVEL 2: Currency Summary Cards Row */}
+        <section id="section-summary" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+          <CurrencySummaryCard 
+            fromCode="usd"
+            toCode="inr"
+            rate={inrRate}
+            changePercent={0.42}
+            isFavorite={favorites.includes('usd')}
+            onToggleFavorite={toggleFavorite}
+            isLoading={isInitialLoading}
+          />
+          <CurrencySummaryCard 
+            fromCode="eur"
+            toCode="inr"
+            rate={eurRate}
+            changePercent={0.18}
+            isFavorite={favorites.includes('eur')}
+            onToggleFavorite={toggleFavorite}
+            isLoading={isInitialLoading}
+          />
+          <CurrencySummaryCard 
+            fromCode="gbp"
+            toCode="inr"
+            rate={gbpRate}
+            changePercent={-0.21}
+            isFavorite={favorites.includes('gbp')}
+            onToggleFavorite={toggleFavorite}
+            isLoading={isInitialLoading}
+          />
+          <CurrencySummaryCard 
+            fromCode="jpy"
+            toCode="inr"
+            rate={jpyRate}
+            changePercent={0.31}
+            isFavorite={favorites.includes('jpy')}
+            onToggleFavorite={toggleFavorite}
+            isLoading={isInitialLoading}
+          />
+        </section>
+
+        {/* LEVEL 3: Side-by-Side Currency Converter (~58%) & Rate Trend Chart (~42%) */}
+        <section id="section-converter" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           
-          {/* LEFT COLUMN: Hero Converter, Trend History Chart, Calculation History */}
-          <div className="lg:col-span-7 space-y-8">
-            
-            {/* HERO MODULE: Currency Converter Card */}
-            <section className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-slate-800/90 rounded-3xl p-6 sm:p-7 hero-glow relative overflow-hidden transition-all duration-300">
+          {/* LEFT COLUMN: Currency Converter Card (7 Cols ~ 58%) */}
+          <div className="lg:col-span-7">
+            <div className="fin-card fin-card-elevated p-5 sm:p-6 space-y-5 h-full flex flex-col justify-between">
               
-              {/* Subtle accent glow line on top */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-400"></div>
-
-              <div className="flex items-center justify-between mb-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
-                    <Coins size={16} strokeWidth={2.5} />
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                    <Coins size={18} strokeWidth={2.2} />
                   </div>
-                  <h2 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Currency Converter
-                  </h2>
+                  <div>
+                    <h2 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                      Currency Converter
+                    </h2>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                      Instant multi-currency exchange matrix
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800">
+
+                <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
                   Real-time FX
                 </span>
               </div>
@@ -357,451 +390,231 @@ function App() {
               {isInitialLoading ? (
                 <ConverterSkeleton />
               ) : (
-                <form onSubmit={saveToHistory} className="space-y-5">
+                <form onSubmit={saveToHistory} className="space-y-4">
                   
-                  {/* From Input Box Module */}
-                  <div className="space-y-3">
-                    <InputBox
-                      label="From"
-                      amount={amount}
-                      onAmountChange={handleAmountChange}
-                      onCurrencyChange={setFrom}
-                      currencyOptions={options}
-                      selectCurrency={from}
-                      currencyNames={currencyNames}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                    />
+                  {/* From & To Input Boxes connected by Swap button */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center relative">
                     
-                    {/* Preset Amount Chips & Favorites Quick Select */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                      
-                      {/* Presets Row */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Quick:</span>
-                        {[100, 500, 1000, 5000, 10000].map((preset) => {
-                          const isActive = amount === preset
-                          return (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => handleAmountChange(preset)}
-                              className={`text-[11px] font-bold px-3 py-1 rounded-lg border transition-all cursor-pointer ${
-                                isActive 
-                                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-500/30' 
-                                  : 'border-[#E2E8F0] dark:border-slate-800 bg-[#F8FAFC] dark:bg-[#090D16] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'
-                              }`}
-                            >
-                              ${preset.toLocaleString()}
-                            </button>
-                          )
-                        })}
-                      </div>
+                    {/* From Input Box */}
+                    <div className="sm:col-span-5">
+                      <InputBox
+                        label="From"
+                        amount={amount}
+                        onAmountChange={handleAmountChange}
+                        onCurrencyChange={setFrom}
+                        currencyOptions={options}
+                        selectCurrency={from}
+                        currencyNames={currencyNames}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    </div>
 
-                      {/* Favorites Quick selection */}
-                      {favorites.length > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">Pinned:</span>
-                          <div className="flex gap-1 max-w-[160px] overflow-x-auto scrollbar-none">
-                            {favorites.map((curr) => (
-                              <button
-                                key={curr}
-                                type="button"
-                                onClick={() => {
-                                  setFrom(curr)
-                                  setLastEdited('from')
-                                }}
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all cursor-pointer shrink-0 ${
-                                  from === curr 
-                                    ? 'bg-blue-500/20 border-blue-500/60 text-blue-500' 
-                                    : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-200'
-                                }`}
-                              >
-                                {curr.toUpperCase()}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    {/* Swap Button Divider */}
+                    <div className="sm:col-span-2 flex justify-center py-1 sm:py-0">
+                      <motion.button
+                        type="button"
+                        whileHover={{ rotate: 180, scale: 1.08 }}
+                        whileTap={{ scale: 0.95 }}
+                        transition={{ duration: 0.25 }}
+                        onClick={swapCurrency}
+                        className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white hover:border-blue-500 shadow-md hover:shadow-blue-500/20 transition-all cursor-pointer"
+                        title="Swap currencies"
+                      >
+                        <ArrowUpDown size={15} strokeWidth={2.2} />
+                      </motion.button>
+                    </div>
+
+                    {/* To Input Box */}
+                    <div className="sm:col-span-5">
+                      <InputBox
+                        label="To"
+                        amount={convertedAmount}
+                        onAmountChange={handleConvertedAmountChange}
+                        onCurrencyChange={setTo}
+                        currencyOptions={options}
+                        selectCurrency={to}
+                        currencyNames={currencyNames}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    </div>
+
+                  </div>
+
+                  {/* Quick Amounts Presets */}
+                  <div className="space-y-1.5 pt-0.5">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                      Quick Amounts
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[100, 500, 1000, 5000, 10000].map((preset) => {
+                        const isActive = amount === preset
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => handleAmountChange(preset)}
+                            className={`text-[11px] font-bold px-3 py-1 rounded-xl border transition-all cursor-pointer ${
+                              isActive 
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-xs' 
+                                : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#090D16] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'
+                            }`}
+                          >
+                            ${preset.toLocaleString()}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 
-                  {/* Floating Circular Swap Divider */}
-                  <div className="relative flex justify-center items-center my-[-10px] z-10">
-                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                      <div className="w-full border-t border-[#E2E8F0] dark:border-slate-800/80"></div>
+                  {/* Pinned & Target Favorites Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    
+                    {/* Pinned Currencies */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                        Pinned Currencies
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {['usd', 'eur', 'inr', 'gbp'].map((curr) => (
+                          <button
+                            key={curr}
+                            type="button"
+                            onClick={() => {
+                              setFrom(curr)
+                              setLastEdited('from')
+                            }}
+                            className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer uppercase ${
+                              from === curr 
+                                ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-600 dark:text-blue-400' 
+                                : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#090D16] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            {curr}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <motion.button
-                      type="button"
-                      whileHover={{ rotate: 180, scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.25 }}
-                      onClick={swapCurrency}
-                      className="relative flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white hover:border-blue-500 shadow-md hover:shadow-blue-500/20 transition-all cursor-pointer focus:ring-2 focus:ring-blue-500/30"
-                      title="Swap currencies"
-                    >
-                      <ArrowUpDown size={15} strokeWidth={2.2} />
-                    </motion.button>
+
+                    {/* Target Favorites */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                        Target Favorites
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {['usd', 'eur', 'inr', 'gbp', 'jpy'].map((curr) => (
+                          <button
+                            key={curr}
+                            type="button"
+                            onClick={() => {
+                              setTo(curr)
+                              setLastEdited('from')
+                            }}
+                            className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer uppercase ${
+                              to === curr 
+                                ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 text-indigo-600 dark:text-indigo-400' 
+                                : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#090D16] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            {curr}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                   </div>
 
-                  {/* To Input Box Module */}
-                  <div className="space-y-3">
-                    <InputBox
-                      label="To"
-                      amount={convertedAmount}
-                      onAmountChange={handleConvertedAmountChange}
-                      onCurrencyChange={setTo}
-                      currencyOptions={options}
-                      selectCurrency={to}
-                      currencyNames={currencyNames}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                    />
-
-                    {/* Destination Favorites Quick Select */}
-                    {favorites.length > 0 && (
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Target Favorite:</span>
-                        <div className="flex gap-1 max-w-[200px] overflow-x-auto scrollbar-none">
-                          {favorites.map((curr) => (
-                            <button
-                              key={curr}
-                              type="button"
-                              onClick={() => {
-                                setTo(curr)
-                                setLastEdited('from')
-                              }}
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all cursor-pointer shrink-0 ${
-                                to === curr 
-                                  ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-400' 
-                                  : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-200'
-                              }`}
-                            >
-                              {curr.toUpperCase()}
-                            </button>
-                          ))}
-                        </div>
+                  {/* Converted Total & Exchange Rate Summary Box */}
+                  {amount > 0 && activeRate && (
+                    <div className="bg-slate-50/80 dark:bg-[#090D16] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                      <div>
+                        <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                          {formatAmount(amount)} {from.toUpperCase()} =
+                        </p>
+                        <p className="text-xl sm:text-2xl font-extrabold text-blue-600 dark:text-blue-400 font-mono-numbers tracking-tight mt-0.5">
+                          {formatAmount(convertedAmount)} {to.toUpperCase()}
+                        </p>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Conversion Summary Card */}
-                  {amount > 0 && currencyInfo[to] && (
-                    <div className="bg-[#F8FAFC] dark:bg-[#090D16] border border-[#E2E8F0] dark:border-slate-800 rounded-2xl p-4 sm:p-5 text-center space-y-1.5 shadow-inner">
-                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">
-                        Converted Total
-                      </p>
-                      <div className="flex items-baseline justify-center gap-2 flex-wrap">
-                        <span className="text-slate-500 dark:text-slate-400 font-mono-numbers text-base font-bold">
-                          {formatAmount(amount)} {from.toUpperCase()}
-                        </span>
-                        <span className="text-slate-400 dark:text-slate-600 font-bold">≈</span>
-                        <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-mono-numbers tracking-tight">
-                          {formatAmount(convertedAmount)}
-                        </span>
-                        <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400 uppercase">
-                          {to}
-                        </span>
-                      </div>
-                      
-                      {/* Rate summary pill */}
-                      <div className="pt-1">
-                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-800/80 px-3 py-1 rounded-full border border-slate-300/40 dark:border-slate-700/50 inline-block">
-                          1 {from.toUpperCase()} = {formatExchangeRate(currencyInfo[to], to)} ({Number(currencyInfo[to]).toFixed(2)} {to.toUpperCase()})
+                      {/* Exchange Rate Pill */}
+                      <div className="shrink-0">
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1E293B] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 font-mono-numbers inline-block shadow-2xs">
+                          1 {from.toUpperCase()} = {formatExchangeRate(activeRate, to)}
                         </span>
                       </div>
                     </div>
                   )}
 
                   {/* Primary Action Button */}
-                  <motion.button
+                  <button
                     type="submit"
-                    whileTap={{ scale: 0.98 }}
                     disabled={amount <= 0}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:pointer-events-none text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-600/20 cursor-pointer text-sm tracking-wide"
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:from-blue-700 disabled:opacity-40 text-white font-extrabold rounded-2xl transition-all shadow-md shadow-blue-500/20 cursor-pointer text-xs uppercase tracking-wider"
                   >
                     Save Calculation to History
-                  </motion.button>
+                  </button>
+
                 </form>
               )}
-            </section>
 
-            {/* Exchange Rate History Chart Card */}
-            <section className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-slate-800/90 rounded-3xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
-                    <TrendingUp size={16} strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {from.toUpperCase()} / {to.toUpperCase()} Rate Trend
-                  </h2>
-                </div>
-                
-                {/* Time Range Segmented Toggle */}
-                <div className="flex bg-[#F8FAFC] dark:bg-[#090D16] p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                  {[7, 30].map((days) => (
-                    <button
-                      key={days}
-                      type="button"
-                      onClick={() => setChartDays(days)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        chartDays === days 
-                          ? 'bg-white dark:bg-[#1E293B] text-blue-500 shadow-sm' 
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {days}D
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {isInitialLoading ? (
-                <ChartSkeleton />
-              ) : activeRate ? (
-                <div className="h-52 w-full pt-3">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="#64748B" 
-                        fontSize={10} 
-                        fontWeight={600}
-                        tickLine={false} 
-                        axisLine={false}
-                      />
-                      <YAxis 
-                        domain={['auto', 'auto']} 
-                        tickFormatter={(v) => Number(v).toFixed(2)} 
-                        stroke="#64748B" 
-                        fontSize={10} 
-                        fontWeight={600}
-                        tickLine={false} 
-                        axisLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#111827',
-                          borderColor: '#1E293B',
-                          borderRadius: '16px',
-                          color: '#F8FAFC',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
-                        }}
-                        formatter={(value) => [`${Number(value).toFixed(2)} ${to.toUpperCase()}`, 'Rate']}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="rate" 
-                        stroke="#3B82F6" 
-                        strokeWidth={2.5} 
-                        fillOpacity={1} 
-                        fill="url(#colorRate)" 
-                        activeDot={{ r: 6, fill: '#3B82F6', stroke: '#111827', strokeWidth: 2 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-52 w-full flex items-center justify-center text-xs font-semibold text-slate-500">
-                  Select valid currencies to display rate trends
-                </div>
-              )}
-            </section>
-
-            {/* Calculation History Card */}
-            <section className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-slate-800/90 rounded-3xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
-                    <Clock size={16} strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Recent Calculation History
-                  </h2>
-                </div>
-                {history.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setHistory([])}
-                    className="text-[10px] font-bold text-red-500 hover:text-red-400 transition-colors uppercase tracking-wider flex items-center gap-1.5 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-red-500/10"
-                  >
-                    <Trash2 size={11} />
-                    Clear Log
-                  </button>
-                )}
-              </div>
-
-              {history.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
-                  <AnimatePresence mode="popLayout">
-                    {history.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.96 }}
-                        layout
-                        className="flex justify-between items-center bg-[#F8FAFC] dark:bg-[#090D16] hover:bg-slate-100 dark:hover:bg-[#1E293B]/60 border border-[#E2E8F0] dark:border-slate-800/80 rounded-2xl p-3 text-xs transition-all duration-200"
-                      >
-                        <div className="flex items-center gap-1.5 font-semibold min-w-0">
-                          <span className="font-mono-numbers text-slate-900 dark:text-white font-bold">{item.fromAmount.toLocaleString()}</span>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase">{item.from}</span>
-                          <span className="text-slate-400">→</span>
-                          <span className="font-mono-numbers text-blue-600 dark:text-blue-400 font-bold">{item.toAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                          <span className="text-[10px] text-blue-500 font-bold uppercase">{item.to}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium shrink-0 ml-2">{item.time}</span>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              ) : (
-                /* Redesigned Empty State */
-                <div className="text-center py-8 px-4 bg-[#F8FAFC] dark:bg-[#090D16]/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-200/50 dark:bg-slate-800/50 text-slate-400 flex items-center justify-center mx-auto">
-                    <Clock size={18} />
-                  </div>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No Calculation History Saved</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-500 max-w-xs mx-auto">
-                    Click "Save Calculation to History" after converting to log rates for future reference.
-                  </p>
-                </div>
-              )}
-            </section>
-
+            </div>
           </div>
 
-          {/* RIGHT COLUMN: Popular Exchange Rates & Favorites Panel */}
-          <div className="lg:col-span-5 space-y-8">
-            
-            {/* Popular Rates Board Module */}
-            <section className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-slate-800/90 rounded-3xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500">
-                    <Sparkles size={16} strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Popular Exchange Rates
-                  </h2>
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Base: {from.toUpperCase()}
-                </span>
-              </div>
-
-              {isInitialLoading ? (
-                <RatesSkeleton />
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {popularCodes.filter(c => c !== from).map((code) => {
-                    const rawRate = currencyInfo[code]
-                    const displayRate = rawRate ? (1 / rawRate) : null
-                    
-                    return (
-                      <div 
-                        key={code}
-                        className="flex justify-between items-center py-2.5 px-2 hover:bg-[#F8FAFC] dark:hover:bg-[#090D16] rounded-xl transition-all duration-150"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-lg leading-none shrink-0">{getFlag(code)}</span>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-xs tracking-wider block text-slate-900 dark:text-white uppercase">{code}</span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block capitalize truncate max-w-[130px]">
-                              {currencyNames[code] || ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <span className="font-bold text-xs font-mono-numbers block text-slate-900 dark:text-white">
-                            {displayRate ? formatExchangeRate(displayRate, from) : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* Favorites Manager Card Module */}
-            <section className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-slate-800/90 rounded-3xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-500">
-                    <Star size={16} strokeWidth={2.5} className="fill-amber-500/20" />
-                  </div>
-                  <h2 className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Favorite Currencies
-                  </h2>
-                </div>
-              </div>
-
-              {favorites.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  <AnimatePresence>
-                    {favorites.map((curr) => (
-                      <motion.div
-                        key={curr}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="flex items-center gap-2 pl-3 pr-2 py-2 bg-[#F8FAFC] dark:bg-[#090D16] border border-[#E2E8F0] dark:border-slate-800 rounded-xl text-xs font-semibold group/fav shadow-sm hover:border-blue-500/60 transition-all"
-                      >
-                        <span className="text-base shrink-0">{getFlag(curr)}</span>
-                        <span className="font-extrabold tracking-wider text-slate-900 dark:text-white uppercase text-xs">{curr}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleFavorite(curr)}
-                          aria-label={`Remove ${curr} from favorites`}
-                          className="p-0.5 text-slate-400 hover:text-red-500 transition-colors cursor-pointer text-xs rounded-md"
-                        >
-                          &times;
-                        </button>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              ) : (
-                /* Redesigned Empty State */
-                <div className="text-center py-6 px-4 bg-[#F8FAFC] dark:bg-[#090D16]/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-200/50 dark:bg-slate-800/50 text-slate-400 flex items-center justify-center mx-auto">
-                    <Star size={18} />
-                  </div>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No Favorites Pinned</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-500 max-w-xs mx-auto">
-                    Star any currency in the dropdown selector to bookmark it for 1-click access.
-                  </p>
-                </div>
-              )}
-            </section>
-
+          {/* RIGHT COLUMN: Rate Trend Chart Card (5 Cols ~ 42%) */}
+          <div className="lg:col-span-5">
+            <RateTrendChart 
+              fromCurrency={from}
+              toCurrency={to}
+              rate={activeRate}
+              chartDays={chartDays}
+              setChartDays={setChartDays}
+              isLoading={isInitialLoading}
+              theme={theme}
+            />
           </div>
 
-        </div>
-      </main>
+        </section>
 
-      {/* Compliance & Educational Disclaimer Footer */}
-      <footer className="max-w-[1240px] mx-auto px-4 sm:px-6 mt-16 border-t border-[#E2E8F0]/80 dark:border-slate-800/80 pt-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-center gap-3.5 bg-white dark:bg-[#111827]/80 border border-[#E2E8F0] dark:border-slate-800 rounded-2xl p-5 max-w-4xl mx-auto text-left shadow-sm">
-          <div className="text-blue-500 shrink-0 self-start sm:self-center p-2 bg-blue-500/10 rounded-xl">
-            <Info size={18} strokeWidth={2} />
+        {/* LEVEL 4: Market Insights Section (Popular Rates + Recent History + Compact Favorite Chips) */}
+        <section id="section-rates" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Popular Rates Board (Wider 5 Cols) */}
+          <div id="section-rates-list" className="lg:col-span-5">
+            <PopularRates 
+              baseCurrency={from}
+              currencyInfo={currencyInfo}
+              currencyNames={currencyNames}
+              isLoading={isInitialLoading}
+              formatExchangeRate={formatExchangeRate}
+            />
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed">
-            <strong className="text-slate-700 dark:text-slate-300">Financial Disclaimer:</strong> GlobalRate Pro is an independent portfolio dashboard designed for educational and informational tracking. All exchange rates are derived from public real-time market APIs and CDN endpoints. Data is provided for general reference only and should not be relied upon for trading, investment decisions, or official financial settlement.
-          </p>
-        </div>
-      </footer>
+
+          {/* Recent Calculation History (4 Cols) */}
+          <div id="section-history" className="lg:col-span-4">
+            <CalculationHistory 
+              history={history}
+              onClearHistory={() => setHistory([])}
+              isLoading={isInitialLoading}
+            />
+          </div>
+
+          {/* Favorite Currencies Chips Manager (3 Cols - Ends naturally without empty space) */}
+          <div id="section-favorites" className="lg:col-span-3">
+            <FavoriteCurrencies 
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
+              isLoading={isInitialLoading}
+            />
+          </div>
+
+        </section>
+
+        {/* LEVEL 5: Financial Disclaimer Footer */}
+        <FinancialDisclaimer />
+
+      </div>
+
     </div>
   )
 }

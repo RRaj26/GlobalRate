@@ -1,38 +1,37 @@
 @import "tailwindcss";
 
-/* Senior Fintech SaaS Design Tokens & System */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* GlobalRate Pro Fintech SaaS Color System & Design Tokens */
 :root {
-  --bg-color: #F8FAFC;
+  --bg-color: #F5F7FA;
   --card-bg: #FFFFFF;
-  --surface-layered: #F1F5F9;
-  --card-border: #E2E8F0;
-  --card-border-glow: rgba(59, 130, 246, 0.15);
-  --text-primary: #0F172A;
+  --card-border: #E5E7EB;
+  --text-primary: #111827;
   --text-secondary: #64748B;
   --text-muted: #94A3B8;
   --accent-color: #2563EB;
   --accent-hover: #1D4ED8;
   --input-bg: #F8FAFC;
   --panel-bg: #F1F5F9;
-  --shimmer-start: #E2E8F0;
-  --shimmer-end: #F1F5F9;
+  --positive-bg: #EF4444/10;
+  --shimmer-start: #E9EDF2;
+  --shimmer-end: #F5F7FA;
 }
 
 :root.dark {
   --bg-color: #0B0F19;
   --card-bg: #111827;
-  --surface-layered: #1E293B;
   --card-border: rgba(255, 255, 255, 0.08);
-  --card-border-glow: rgba(59, 130, 246, 0.25);
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
   --accent-color: #3B82F6;
   --accent-hover: #2563EB;
   --input-bg: #090D16;
-  --panel-bg: #151D2A;
-  --shimmer-start: #111827;
-  --shimmer-end: #1E293B;
+  --panel-bg: #1E293B;
+  --shimmer-start: #1E293B;
+  --shimmer-end: #334155;
 }
 
 body {
@@ -42,11 +41,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
+  overflow-x: hidden;
 }
 
 /* Tabular Mono font utility */
 .font-mono-numbers {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -66,28 +66,37 @@ body {
   background: rgba(148, 163, 184, 0.45);
 }
 
-/* Subtle Grid Overlay Background */
-.bg-grid {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
-:root.dark .bg-grid {
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Hero Glow Elevation */
-.hero-glow {
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(59, 130, 246, 0.15);
-}
-:root.dark .hero-glow {
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(59, 130, 246, 0.2);
+/* Financial Dashboard Card Shadow & Elevation */
+.fin-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem; /* 16px */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Animated Shimmer Skeleton style */
+.dark .fin-card {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* Elevated Hero Card Shadow */
+.fin-card-elevated {
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+}
+.dark .fin-card-elevated {
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+
+/* Shimmer animation */
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -100,5 +109,5 @@ body {
 .animate-shimmer {
   background: linear-gradient(90deg, var(--shimmer-start) 25%, var(--shimmer-end) 50%, var(--shimmer-start) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.6s infinite linear;
+  animation: shimmer 1.8s infinite linear;
 }

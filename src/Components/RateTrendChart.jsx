@@ -67,9 +67,7 @@ function RateTrendChart({
         <div className="flex bg-slate-100 dark:bg-[#090D16] p-1 rounded-xl border border-slate-200/80 dark:border-slate-800/80 self-start sm:self-auto">
           {[
             { label: '7D', value: 7 },
-            { label: '30D', value: 30 },
-            { label: '90D', value: 90 },
-            { label: '1Y', value: 365 }
+            { label: '30D', value: 30 }
           ].map((item) => (
             <button
               key={item.value}
